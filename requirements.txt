@@ -1,7 +1,11 @@
-# Core
+# Core API (comment out if not using FastAPI)
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 pydantic==2.9.2
+
+# Testing
+pytest==8.3.3
+httpx==0.27.2
 
 # PyTorch (CUDA 12.4 — install separately, see README)
 # pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
@@ -16,11 +20,16 @@ numpy==1.26.4
 Pillow==10.4.0
 
 # XAI (Explainable AI)
+# NOTE: package name on PyPI is 'grad-cam', but it installs as 'pytorch_grad_cam'
 grad-cam==1.5.4
 
-# Testing
-pytest==8.3.3
-httpx==0.27.2
+# Notebooks
+matplotlib>=3.8.0
+ipykernel>=6.0.0
+
+# Dataset Download
+kaggle>=1.6.0
+kagglehub>=0.3.0
 
 # Code Quality
 ruff==0.6.9
