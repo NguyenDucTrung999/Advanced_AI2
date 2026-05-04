@@ -3,8 +3,9 @@ YOLOv10 detection module.
 """
 
 from pathlib import Path
-from ultralytics import YOLO
+
 import numpy as np
+from ultralytics import YOLO
 
 # Root của grading/ subfolder (advanced_ai_project/grading/)
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -13,9 +14,19 @@ DEFAULT_MODEL_PATH = BASE_DIR / "models" / "weights" / "fruit_disease_v2" / "wei
 
 
 class FruitDetector:
+    """YOLOv10-based detector for identifying fruit and their conditions.
+
+    Attributes:
+        model_path (str): Path to the loaded YOLO model weights.
+        model (YOLO): The loaded YOLOv10 model instance.
+    """
+
     def __init__(self, model_path: str = None):
-        """
-        Initialize and load the YOLOv10 weights.
+        """Initializes the FruitDetector and loads the YOLOv10 weights.
+
+        Args:
+            model_path (str, optional): Path to the YOLOv10 weights file.
+                Defaults to the DEFAULT_MODEL_PATH if None.
         """
         if model_path is None:
             model_path = str(DEFAULT_MODEL_PATH)
@@ -24,12 +35,15 @@ class FruitDetector:
         self.model = YOLO(self.model_path)
 
     def detect(self, image_path: str):
-        """
-        Run YOLO model on the input image path.
+        """Runs YOLO model prediction on an image file.
+
+        Args:
+            image_path (str): Path to the input image file.
+
         Returns:
-            bbox: [x_min, y_min, x_max, y_max]
-            class_name: The string label of the detected object (e.g., 'Apple', 'Orange')
-        Returns None, None if nothing is detected.
+            tuple: A tuple containing:
+                - box (numpy.ndarray or None): [x_min, y_min, x_max, y_max] coordinates.
+                - class_name (str or None): The label of the detected object.
         """
         results = self.model.predict(source=image_path, conf=0.25, save=False)
         boxes = results[0].boxes
@@ -44,16 +58,15 @@ class FruitDetector:
         return None, None
 
     def detect_from_array(self, image: np.ndarray):
-        """
-        Run YOLO model on a numpy array (OpenCV BGR image).
+        """Runs YOLO model prediction on an image array.
 
         Args:
-            image: OpenCV BGR image as numpy array
+            image (numpy.ndarray): OpenCV BGR image as a numpy array.
 
         Returns:
-            bbox: [x_min, y_min, x_max, y_max]
-            class_name: The string label of the detected object
-            Returns None, None if nothing is detected.
+            tuple: A tuple containing:
+                - box (numpy.ndarray or None): [x_min, y_min, x_max, y_max] coordinates.
+                - class_name (str or None): The label of the detected object.
         """
         results = self.model.predict(source=image, conf=0.25, save=False)
         boxes = results[0].boxes
@@ -68,9 +81,14 @@ class FruitDetector:
         return None, None
 
     def crop_image(self, image: np.ndarray, bbox):
-        """
-        Crop the image using NumPy slicing based on bounding box coordinates.
-        bbox format: [x_min, y_min, x_max, y_max]
+        """Crops an image based on the provided bounding box.
+
+        Args:
+            image (numpy.ndarray): Original image array.
+            bbox (list or numpy.ndarray): [x_min, y_min, x_max, y_max] coordinates.
+
+        Returns:
+            numpy.ndarray: The cropped image region.
         """
         if bbox is None:
             return image

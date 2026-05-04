@@ -11,11 +11,11 @@ This module mirrors the proven approach from notebook 03_yolov10_xai_visualizati
 import cv2
 import numpy as np
 import torch
-from pathlib import Path
 
 try:
     from pytorch_grad_cam import EigenCAM
     from pytorch_grad_cam.utils.image import show_cam_on_image
+
     GRADCAM_AVAILABLE = True
 except ImportError:
     GRADCAM_AVAILABLE = False
@@ -28,6 +28,7 @@ class YoloModelWrapper(torch.nn.Module):
 
     This is identical to the wrapper used in notebook 03.
     """
+
     def __init__(self, model):
         super().__init__()
         self.model = model
@@ -36,7 +37,7 @@ class YoloModelWrapper(torch.nn.Module):
         # YOLOv10 forward pass returns a tuple/list
         # We return only the first element (the predictions tensor)
         results = self.model(x)
-        if isinstance(results, (list, tuple)):
+        if isinstance(results, list | tuple):
             return results[0]
         return results
 
@@ -61,11 +62,9 @@ def get_yolo_xai_data(results):
             class_id = int(box.cls[0].item())
             class_name = r.names[class_id]
 
-            xai_data.append({
-                "class": class_name,
-                "confidence": f"{confidence}%",
-                "bbox": [int(x1), int(y1), int(x2), int(y2)]
-            })
+            xai_data.append(
+                {"class": class_name, "confidence": f"{confidence}%", "bbox": [int(x1), int(y1), int(x2), int(y2)]}
+            )
     return xai_data
 
 
@@ -137,7 +136,7 @@ class HeatmapExplainer:
             model: YOLO model instance from ultralytics
         """
         self.model = model
-        self.device = next(model.model.parameters()).device if hasattr(model, 'model') else torch.device('cpu')
+        self.device = next(model.model.parameters()).device if hasattr(model, "model") else torch.device("cpu")
 
     def get_detection_metadata(self, results):
         """
@@ -196,5 +195,5 @@ class HeatmapExplainer:
             "detections": detections,
             "heatmap": heatmap,
             "is_defective": is_defective,
-            "model_device": str(self.device)
+            "model_device": str(self.device),
         }

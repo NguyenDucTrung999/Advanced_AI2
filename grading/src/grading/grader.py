@@ -1,16 +1,27 @@
 import cv2
 import numpy as np
 
-from .ripeness_profiles import RIPENESS_PROFILES
 from .defect_profiles import DEFECT_PROFILES
+from .ripeness_profiles import RIPENESS_PROFILES
 
 
 class QualityGrader:
-    def remove_background(self, cropped_img):
-        """Remove background using GrabCut"""
+    """Hybrid grading engine combining OpenCV analysis and YOLO classifications."""
+
+    def remove_background(self, cropped_img: np.ndarray):
+        """Removes the background from a cropped fruit image using the GrabCut algorithm.
+
+        Args:
+            cropped_img (numpy.ndarray): The BGR image of the fruit detected by YOLO.
+
+        Returns:
+            tuple: A tuple containing:
+                - img_no_bg (numpy.ndarray): The image with the background removed (blacked out).
+                - fruit_mask (numpy.ndarray): A binary mask where 1 represents the fruit and 0 represents background.
+        """
         mask = np.zeros(cropped_img.shape[:2], np.uint8)
-        bgdModel = np.zeros((1, 65), np.float64)
-        fgdModel = np.zeros((1, 65), np.float64)
+        bgd_model = np.zeros((1, 65), np.float64)
+        fgd_model = np.zeros((1, 65), np.float64)
         h, w = cropped_img.shape[:2]
 
         # Dynamic Margin for Elongated objects (Banana, Carrot, Cucumber)
@@ -35,8 +46,8 @@ class QualityGrader:
                     cropped_img,
                     mask,
                     rect,
-                    bgdModel,
-                    fgdModel,
+                    bgd_model,
+                    fgd_model,
                     5,
                     cv2.GC_INIT_WITH_RECT,
                 )
@@ -56,10 +67,18 @@ class QualityGrader:
 
         return img_no_bg, fruit_mask
 
-    def calculate_edge_density(self, img_no_bg, fruit_mask):
-        """Calculate the density of edges (texture) within the fruit area"""
+    def calculate_edge_density(self, img_no_bg: np.ndarray, fruit_mask: np.ndarray):
+        """Calculates the density of edges (texture) within the fruit area.
+
+        Args:
+            img_no_bg (numpy.ndarray): The image with background removed.
+            fruit_mask (numpy.ndarray): Binary mask of the fruit.
+
+        Returns:
+            float: The edge density ratio (edges / fruit_area).
+        """
         gray = cv2.cvtColor(img_no_bg, cv2.COLOR_BGR2GRAY)
-        
+
         # Canny edge detection
         edges = cv2.Canny(gray, 100, 200)
 
@@ -73,9 +92,15 @@ class QualityGrader:
         density = edge_pixels / fruit_pixels
         return round(density, 4)
 
-    def calculate_size_score(self, fruit_mask, profile):
-        """
-        Calculate Size Score based on Min-Max Scaling (Relative Pixel Area).
+    def calculate_size_score(self, fruit_mask: np.ndarray, profile: dict):
+        """Calculates a size score based on Min-Max Scaling of pixel area.
+
+        Args:
+            fruit_mask (numpy.ndarray): Binary mask of the fruit.
+            profile (dict): Configuration profile containing min_area and max_area.
+
+        Returns:
+            float: Size score scaled from 0 to 100.
         """
         current_area = cv2.countNonZero(fruit_mask)
         size_config = profile.get("size_config", {})
@@ -90,14 +115,16 @@ class QualityGrader:
         size_score = ((current_area - min_area) / (max_area - min_area)) * 100
         return round(size_score, 2)
 
-    def calculate_shape_conformity(self, fruit_mask):
+    def calculate_shape_conformity(self, fruit_mask: np.ndarray):
+        """Calculates shape conformity based on solidity (Area / Convex Hull Area).
+
+        Args:
+            fruit_mask (numpy.ndarray): Binary mask of the fruit.
+
+        Returns:
+            float: Solidity percentage (0-100).
         """
-        Calculate Shape Conformity based on Solidity.
-        Solidity = Area / Convex_Hull_Area
-        """
-        contours, _ = cv2.findContours(
-            fruit_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
+        contours, _ = cv2.findContours(fruit_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
             return 0.0
 
@@ -112,31 +139,30 @@ class QualityGrader:
         solidity = (fruit_area / hull_area) * 100
         return round(solidity, 2)
 
-    def analyze_ripeness(self, hsv_img, fruit_mask, profile):
-        """Pipeline 1: Analyze ripeness for Healthy fruit"""
+    def analyze_ripeness(self, hsv_img: np.ndarray, fruit_mask: np.ndarray, profile: dict):
+        """Analyzes fruit ripeness based on color distribution in HSV space.
+
+        Args:
+            hsv_img (numpy.ndarray): The fruit image in HSV color space.
+            fruit_mask (numpy.ndarray): Binary mask of the fruit.
+            profile (dict): Configuration profile containing ripe/unripe HSV ranges.
+
+        Returns:
+            float: Ripeness percentage (0-100).
+        """
         # Ripe color mask
-        ripe_mask = cv2.inRange(
-            hsv_img, profile["ripe"]["lower"], profile["ripe"]["upper"]
-        )
+        ripe_mask = cv2.inRange(hsv_img, profile["ripe"]["lower"], profile["ripe"]["upper"])
 
         if "ripe_alt" in profile:
-            ripe_alt = cv2.inRange(
-                hsv_img, profile["ripe_alt"]["lower"], profile["ripe_alt"]["upper"]
-            )
+            ripe_alt = cv2.inRange(hsv_img, profile["ripe_alt"]["lower"], profile["ripe_alt"]["upper"])
             ripe_mask = cv2.bitwise_or(ripe_mask, ripe_alt)
 
         # Unripe color mask
-        unripe_mask = cv2.inRange(
-            hsv_img, profile["unripe"]["lower"], profile["unripe"]["upper"]
-        )
+        unripe_mask = cv2.inRange(hsv_img, profile["unripe"]["lower"], profile["unripe"]["upper"])
 
         # Only count within the fruit area
-        ripe_pixels = cv2.countNonZero(
-            cv2.bitwise_and(ripe_mask, ripe_mask, mask=fruit_mask)
-        )
-        unripe_pixels = cv2.countNonZero(
-            cv2.bitwise_and(unripe_mask, unripe_mask, mask=fruit_mask)
-        )
+        ripe_pixels = cv2.countNonZero(cv2.bitwise_and(ripe_mask, ripe_mask, mask=fruit_mask))
+        unripe_pixels = cv2.countNonZero(cv2.bitwise_and(unripe_mask, unripe_mask, mask=fruit_mask))
 
         total_eval_pixels = ripe_pixels + unripe_pixels
 
@@ -146,12 +172,28 @@ class QualityGrader:
         ripeness_percentage = (ripe_pixels / total_eval_pixels) * 100
         return round(ripeness_percentage, 2)
 
-    def analyze_defects(self, img_no_bg, hsv_img, fruit_mask, profile, fruit_type):
-        """Pipeline 2: Analyze rot for Defective fruit"""
-        # Pre-processing per Group
-        SPHERICAL = ["Apple", "Tomato", "Orange", "Guava", "Pomegranate", "Jujube"]
+    def analyze_defects(
+        self, img_no_bg: np.ndarray, hsv_img: np.ndarray, fruit_mask: np.ndarray, profile: dict, fruit_type: str
+    ):
+        """Analyzes fruit for defects (rot/mold) using color masking and contour analysis.
 
-        if fruit_type in SPHERICAL:
+        Args:
+            img_no_bg (numpy.ndarray): The image with background removed.
+            hsv_img (numpy.ndarray): The fruit image in HSV space.
+            fruit_mask (numpy.ndarray): Binary mask of the fruit.
+            profile (dict): Configuration profile containing rot/mold HSV ranges.
+            fruit_type (str): Type of fruit (e.g., 'Apple').
+
+        Returns:
+            tuple: A tuple containing:
+                - defect_percentage (float): Percentage of the fruit area covered by defects.
+                - highlighted_img (numpy.ndarray): The image with defects outlined in red.
+                - defect_mask (numpy.ndarray): Binary mask of the detected defects.
+        """
+        # Pre-processing per Group
+        spherical_fruits = ["Apple", "Tomato", "Orange", "Guava", "Pomegranate", "Jujube"]
+
+        if fruit_type in spherical_fruits:
             # Safe Zone Erosion (Remove edge shadows)
             kernel = np.ones((7, 7), np.uint8)
             fruit_mask = cv2.erode(fruit_mask, kernel, iterations=1)
@@ -171,24 +213,18 @@ class QualityGrader:
             return 0, img_no_bg, fruit_mask
 
         # Integrate both rot and mold masks
-        rot_mask = cv2.inRange(
-            hsv_img, profile["rot"]["lower"], profile["rot"]["upper"]
-        )
+        rot_mask = cv2.inRange(hsv_img, profile["rot"]["lower"], profile["rot"]["upper"])
 
-        mold_mask = cv2.inRange(
-            hsv_img, profile["mold"]["lower"], profile["mold"]["upper"]
-        )
+        mold_mask = cv2.inRange(hsv_img, profile["mold"]["lower"], profile["mold"]["upper"])
 
-        if fruit_type in SPHERICAL:
+        if fruit_type in spherical_fruits:
             # Remove Specular Highlights (Flash/Glare) from mold
             # "False White Area" Protection
             s_limit = profile.get("specular_saturation_limit", 20)
             v_limit = profile.get("specular_value_limit", 240)
             _, s, v = cv2.split(hsv_img)
-            
-            highlight_mask = cv2.bitwise_and(
-                cv2.inRange(v, v_limit, 255), cv2.inRange(s, 0, s_limit)
-            )
+
+            highlight_mask = cv2.bitwise_and(cv2.inRange(v, v_limit, 255), cv2.inRange(s, 0, s_limit))
 
             # Dilate the glare shield to swallow fuzzy boundaries
             kernel_dilate = np.ones((5, 5), np.uint8)
@@ -216,9 +252,7 @@ class QualityGrader:
 
         # Fill holes within the defect contour
         # Find contours of the defect areas
-        contours, _ = cv2.findContours(
-            defect_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
+        contours, _ = cv2.findContours(defect_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         # Create a new mask to fill the solid contours
         filled_defect_mask = np.zeros_like(defect_mask)
@@ -255,14 +289,10 @@ class QualityGrader:
                 valid_contours.append(cnt)
 
         # Draw and fill the valid contours on the new mask (-1 means fill the contour)
-        cv2.drawContours(
-            filled_defect_mask, valid_contours, -1, 255, thickness=cv2.FILLED
-        )
+        cv2.drawContours(filled_defect_mask, valid_contours, -1, 255, thickness=cv2.FILLED)
 
         # Ensure the filled mask still stays strictly within the fruit boundary
-        defect_mask = cv2.bitwise_and(
-            filled_defect_mask, filled_defect_mask, mask=fruit_mask
-        )
+        defect_mask = cv2.bitwise_and(filled_defect_mask, filled_defect_mask, mask=fruit_mask)
 
         # Calculate the final rot area based on the filled mask
         total_rot_area = cv2.countNonZero(defect_mask)
@@ -277,19 +307,24 @@ class QualityGrader:
 
         # Draw XAI boundaries on the final image
         # Refind contours on the filled mask just to draw nice clean outlines
-        final_contours, _ = cv2.findContours(
-            defect_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
+        final_contours, _ = cv2.findContours(defect_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         highlighted_img = img_no_bg.copy()
         cv2.drawContours(highlighted_img, final_contours, -1, (0, 0, 255), 2)
 
         return round(defect_percentage, 2), highlighted_img, defect_mask
 
-    def process_fruit(self, cropped_img, yolo_class_name):
-        """
-        Main Pipeline Function: Branches based on YOLO results
-        Example yolo_class_name: "Apple_Healthy", "Banana_Rotten"
+    def process_fruit(self, cropped_img: np.ndarray, yolo_class_name: str):
+        """Main Pipeline Function: Analyzes a fruit crop and determines its grade.
+
+        Args:
+            cropped_img (numpy.ndarray): The BGR image of the fruit crop.
+            yolo_class_name (str): The class name predicted by YOLO (e.g., 'Apple_Healthy').
+
+        Returns:
+            tuple: A tuple containing:
+                - xai_report (dict): A detailed report containing metrics and decision logic.
+                - final_image (numpy.ndarray): The processed image (with XAI highlights if rotten).
         """
 
         # 1. Extract information from YOLO label
@@ -328,7 +363,7 @@ class QualityGrader:
         limg = cv2.merge((cl, a, b))
         img_clahe = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
         hsv_img = cv2.cvtColor(img_clahe, cv2.COLOR_BGR2HSV)
-        
+
         full_profile = {**ripeness_profile, **defect_profile}
 
         # CALCULATE ALL METRICS
@@ -382,12 +417,8 @@ class QualityGrader:
         else:
             # BRANCH 2: YOLO DETECTED ROTTEN -> FINAL VERDICT & EXPORT EVIDENCE IMAGE
             grade = "Grade F (Rotten/Defective)"
-            explain_log.append(
-                f"Discarded: YOLO classified as Rotten. CV analysis verified defect area."
-            )
-            final_image = (
-                highlighted_img  # Use image with red outlines for XAI (explanation)
-            )
+            explain_log.append("Discarded: YOLO classified as Rotten. CV analysis verified defect area.")
+            final_image = highlighted_img  # Use image with red outlines for XAI (explanation)
 
         # PACKAGE XAI REPORT
         xai_report = {

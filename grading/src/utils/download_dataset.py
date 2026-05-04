@@ -1,6 +1,7 @@
 import os
 import zipfile
 from pathlib import Path
+
 from kaggle.api.kaggle_api_extended import KaggleApi
 
 # Root của grading/ subfolder (advanced_ai_project/grading/)
@@ -8,7 +9,7 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 
 # Đường dẫn dataset
 DATA_DIR = BASE_DIR / "data"
-RAW_DIR  = BASE_DIR / "data" / "raw"
+RAW_DIR = BASE_DIR / "data" / "raw"
 # Tên dataset trên Kaggle (format: username/dataset-slug)
 DATASET = "marquis03/fruit-and-vegetable-disease"
 

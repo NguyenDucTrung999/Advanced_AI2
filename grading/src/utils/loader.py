@@ -1,5 +1,6 @@
-from ultralytics import YOLO
 from pathlib import Path
+
+from ultralytics import YOLO
 
 # Root của grading/ subfolder (advanced_ai_project/grading/)
 BASE_DIR = Path(__file__).resolve().parents[2]

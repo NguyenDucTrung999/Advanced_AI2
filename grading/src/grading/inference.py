@@ -5,13 +5,11 @@ Provides unified interface for YOLO detection + CV grading with XAI reporting.
 
 import cv2
 import numpy as np
-from pathlib import Path
-from typing import Union, Optional
 
-from grading.src.utils.loader import get_detector
 from grading.src.detection.detector import FruitDetector
-from grading.src.grading.grader import QualityGrader
 from grading.src.explainability.explainer import HeatmapExplainer
+from grading.src.grading.grader import QualityGrader
+from grading.src.utils.loader import get_detector
 
 # Initialize grader singleton
 _grader = None
@@ -53,7 +51,7 @@ def predict(image_path: str) -> dict:
     return predict_from_array(image, image_path)
 
 
-def predict_from_array(image: np.ndarray, source_path: Optional[str] = None) -> dict:
+def predict_from_array(image: np.ndarray, source_path: str | None = None) -> dict:
     """
     Predict fruit quality grade from numpy array (OpenCV BGR image).
 
@@ -79,12 +77,7 @@ def predict_from_array(image: np.ndarray, source_path: Optional[str] = None) -> 
     bbox, class_name = _detector.detect_from_array(image)
 
     if bbox is None:
-        return {
-            "success": False,
-            "error": "No fruit detected in image",
-            "grade": "Unknown",
-            "metrics": {}
-        }
+        return {"success": False, "error": "No fruit detected in image", "grade": "Unknown", "metrics": {}}
 
     # Step 2: Crop fruit region
     cropped = _detector.crop_image(image, bbox)
@@ -98,8 +91,8 @@ def predict_from_array(image: np.ndarray, source_path: Optional[str] = None) -> 
     # This mirrors the notebook 03 flow: heatmap is generated from the FULL
     # original image (not the cropped region), using EigenCAM on 640x640 input.
     heatmap = None
-    yolo_prediction = xai_report['metadata']['yolo_prediction']
-    if yolo_prediction != 'Healthy':
+    yolo_prediction = xai_report["metadata"]["yolo_prediction"]
+    if yolo_prediction != "Healthy":
         try:
             # Pass the original BGR image directly — explainer handles BGR->RGB
             heatmap = explainer.generate_heatmap(image)
@@ -109,19 +102,16 @@ def predict_from_array(image: np.ndarray, source_path: Optional[str] = None) -> 
     # Build response
     return {
         "success": True,
-        "grade": xai_report['decision']['grade'],
+        "grade": xai_report["decision"]["grade"],
         "class_name": safe_class_name,
-        "metrics": xai_report['metrics'],
+        "metrics": xai_report["metrics"],
         "xai": {
-            "reasons": xai_report['decision']['reasons'],
-            "metadata": xai_report['metadata'],
-            "detection": {
-                "bbox": bbox.tolist() if hasattr(bbox, 'tolist') else list(bbox),
-                "class": safe_class_name
-            }
+            "reasons": xai_report["decision"]["reasons"],
+            "metadata": xai_report["metadata"],
+            "detection": {"bbox": bbox.tolist() if hasattr(bbox, "tolist") else list(bbox), "class": safe_class_name},
         },
         "heatmap": heatmap,
-        "source": source_path
+        "source": source_path,
     }
 
 
