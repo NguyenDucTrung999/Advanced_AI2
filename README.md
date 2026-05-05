@@ -76,8 +76,7 @@ advanced_ai_project/
 │
 ├── recommendation/                # [2] RECOMMENDATION ENGINE MODULE
 │   ├── recommendation.ipynb       # Model training and evaluation notebook
-│   ├── mock_transactions.json     # Sample transaction dataset
-│   └── recommendation.pkl         # Serialized trained recommendation model
+│   └── rules.pkl         # Serialized trained recommendation model
 │
 ├── notebooks/                     # [3] R&D, DATA ANALYSIS & DEMOS
 │   ├── 01_data_annotation.ipynb   # Automated data download & preparation
