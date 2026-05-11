@@ -19,9 +19,18 @@ env/
 .env
 
 # ========================
-# Data & Models (KHÔNG push lên GitHub)
+# Data & Models (DO NOT push to GitHub)
 # ========================
-data/
+# Ignore all data/ folders everywhere
+**/data/
+# But allow grading/data/ to be traversed
+!grading/data/
+# Re-ignore everything inside grading/data/
+grading/data/*
+# Then whitelist ONLY the 2 demo folders
+!grading/data/test_images/
+!grading/data/viva_images/
+
 models/
 models/*.pt
 models/*.h5
@@ -61,9 +70,5 @@ htmlcov/
 .coverage
 .pytest_cache/
 .mypy_cache/
-
-demo.txt
-
-history.log
 
 viva.txt
